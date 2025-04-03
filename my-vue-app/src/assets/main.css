@@ -1,4 +1,5 @@
 @import './base.css';
+@import 'primeicons/primeicons.css'; /*css for some icons. Used in sidebar menu for globe*/
 
 #app {
   /* Adjusted display settings for map */
