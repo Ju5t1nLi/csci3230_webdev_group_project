@@ -49,12 +49,12 @@
         //Note data (includes the text, location, timestamp)
         showForm: false,
         noteText: '',
-        noteLocation: null,
+        noteCoords: null,
         pins: [] //Array to hold all the pins for backend storage
       };
     },
     mounted() { //Lifecycle hook for when map is mounted
-      //Mapbox API key. You can make one by signing up for a mapbox account
+      //Mapbox API key
       mapboxgl.accessToken = 'pk.eyJ1IjoianVzdGZhbCIsImEiOiJjbG9zdm01ZTUwM2Z2Mm1wZnBoejRwMXJkIn0.ggOWShYeI5kjQ4eWD7REbA'; //API key (mapbox)
       this.map = new mapboxgl.Map({
         container: this.$refs.mapContainer,
@@ -100,55 +100,53 @@
         // Listen for clicks and log latitude/longitude for pin location, then show the form to add a note
         map.on('click', (e) => {
           this.userInteracting = true;
-          this.noteLocation = e.lngLat;
+          this.noteCoords = e.lngLat;
           this.showForm = true;
         });
       },
       //Function that adds the pin to the map and saves any associated data with it
-      saveNote() {
+      async saveNote() {
         if (!this.noteText.trim()) return; // Ignore empty notes
 
-        const timestamp = new Date().toLocaleString(); //Mark the time of note creation
+        const timestamp = new Date().toLocaleString();  //Mark the time of note creation
+        const { lng, lat } = this.noteCoords; //Extract longitude and latitude from note coordinates
 
-        //Create the popup and set the text according to the user input, as well as date/time and location
-        const popup = new mapboxgl.Popup({ offset: 25, closeButton: false}) 
+        // Reverse geocode the coordinates to extract city and country
+        const { city, country } = await this.reverseGeocode(lng, lat);
+
+        //Create the popup and set the text according to the user input, as well as date/time, coordinates, and location
+        const popup = new mapboxgl.Popup({ offset: 25, closeButton: false }) 
           .setHTML(`
             ${this.noteText}<hr>
             <strong>Date/Time:</strong> ${timestamp}<br>
-            <strong>Lat:</strong> ${this.noteLocation.lat.toFixed(4)}, 
-            <strong>Lng:</strong> ${this.noteLocation.lng.toFixed(4)}
+            <strong>Lat:</strong> ${lat.toFixed(4)}, <strong>Lng:</strong> ${lng.toFixed(4)}<br>
+            <strong>Location:</strong> ${city}, ${country}
           `);
-          
+
         // Create the pin for the map and set the location to the lat and lng of the click. Attach the popup to the pin and add it to the map
         const pin = new mapboxgl.Marker()
-          .setLngLat([this.noteLocation.lng, this.noteLocation.lat])
-          .setPopup(popup) // Add popup to marker
+          .setLngLat([lng, lat])
+          .setPopup(popup) //Add the popup to the marker
           .addTo(this.map);
 
-        // Show the popup for the associated pin when hovering over it
-        pin.getElement().addEventListener('mouseenter', () => {
-          popup.addTo(this.map);
-        });
-
-        // Hide popup when not hovering over it
-        pin.getElement().addEventListener('mouseleave', () => {
-          popup.remove();
-        });
+        //Show the popup for the associated pin when hovering over it, and hide it when not hovering
+        pin.getElement().addEventListener('mouseenter', () => popup.addTo(this.map));
+        pin.getElement().addEventListener('mouseleave', () => popup.remove());
 
         // Push data to array
-        this.pins.push({ pin, text: this.noteText, timestamp, location: this.noteLocation });
+        this.pins.push({ pin, text: this.noteText, timestamp, coordinates: this.noteCoords, location: {city, country}});
 
-        // Reset form for a new note
+        //Reset form for a new note
         this.showForm = false;
         this.noteText = '';
-        this.noteLocation = null;
-        console.log(this.pins);
+        this.noteCoords = null;
       },
+
       // Reset function in case the user doesn't want to save the note
       cancelNote() {
         this.showForm = false;
         this.noteText = '';
-        this.noteLocation = null;
+        this.noteCoords = null;
       },
       //Delete function to wipe all pins + notes from the map
       deleteAllPins() {
@@ -163,11 +161,15 @@
         return;
       }
       // Format the pins data into JSON
-      const pinData = this.pins.map(({ text, timestamp, location }) => ({
+      const pinData = this.pins.map(({ text, timestamp, coordinates, location }) => ({
         text,
         timestamp,
-        lat: location.lat,
-        lng: location.lng,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        location: {
+          city: location.city,
+          country: location.country
+        }
       }));
 
       // Create a blob from the JSON data for file download
@@ -182,16 +184,51 @@
       link.click(); 
       alert('Pins exported successfully!');
     },
+    //Function to convert the coordinates of a pin and extract the city and country of the location the pin was placed at
+    async reverseGeocode(lng, lat) {
+      //API call using latitude and longitude coorinates and API token
+      const accessToken = mapboxgl.accessToken;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${accessToken}&types=place,country`;
 
-      //Function to toggle spin on and off
-      toggleSpin() {
-        this.spinEnabled = !this.spinEnabled;
-        if (this.spinEnabled) {
-          this.spinGlobe();
+      // If the coordinates contain city and country data, extract it and return the names. Otherwise show unknown or call an error
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        //If there are features from the coordinates
+        if (data && data.features && data.features.length > 0) {
+          let city = '';
+          let country = '';
+
+          //Go through all features available, but only extract country and city (can get more if required)
+          for (const feature of data.features) {
+            if (feature.place_type.includes('place')) {
+              city = feature.text;
+            }
+            if (feature.place_type.includes('country')) {
+              country = feature.text;
+            }
+          }
+
+          return { city, country };
         } else {
-          this.map.stop();
+          return { city: '?', country: '?'};
         }
+      } catch (err) { //Throw error if API call fails
+        console.error('Reverse geocoding failed:', err);
+        return { city: 'Error', country: 'Error' };
       }
+    },
+
+    //Function to toggle spin on and off
+    toggleSpin() {
+      this.spinEnabled = !this.spinEnabled;
+      if (this.spinEnabled) {
+        this.spinGlobe();
+      } else {
+        this.map.stop();
+      }
+    }
     }
   };
   </script>
