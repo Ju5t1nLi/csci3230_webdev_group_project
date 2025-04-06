@@ -2,7 +2,7 @@
   "name": "message-board",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,10 +10,16 @@
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "lint:eslint": "eslint . --fix",
     "lint": "run-s lint:*",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "server": "node server/server.js",
+    "start": "concurrently \"npm run dev\" \"npm run server\""
   },
   "dependencies": {
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
     "pinia": "^3.0.1",
+    "sqlite3": "^5.1.7",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
