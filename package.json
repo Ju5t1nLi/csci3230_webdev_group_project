@@ -11,7 +11,7 @@
     "lint:eslint": "eslint . --fix",
     "lint": "run-s lint:*",
     "format": "prettier --write src/",
-    "server": "node server/server.js",
+    "server": "node --watch server/server.js",
     "start": "concurrently \"npm run dev\" \"npm run server\""
   },
   "dependencies": {
