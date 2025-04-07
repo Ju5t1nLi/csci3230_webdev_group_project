@@ -1,10 +1,13 @@
 <template>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css" rel="stylesheet"> <!-- Mapbox CSS stylesheet. must be imported for marker functionality-->
     <div>
-      <!-- Map + rotation button -->
+      <!-- Map -->
       <div id="map" ref="mapContainer"></div>
-      <button id="btn-spin" @click="toggleSpin">{{ spinEnabled ? 'Pause rotation' : 'Start rotation' }}</button>
-
+      <!-- Color picker for marker -->
+      <div id="color-picker">
+        <label for="marker-color">Pin Color:</label>
+        <input type="color" id="marker-color" v-model="markerColor" />
+      </div>
       <!-- Sidebar for map tools -->
       <div class="sidebar" :class="{ open: sidebarOpen }">
         <nav>
@@ -15,6 +18,10 @@
         <!--Delete button for all pins on the map-->
         <button id="btn-delete" @click="deleteAllPins">
           <i class="pi pi-trash"></i> <span class="nav-text">Delete All Pins</span>
+        </button>
+        <!--Delete route button-->
+        <button id ="btn-delete-route" @click="clearRoute">
+          <i class="pi pi-circle"></i> <span class="nav-text">Clear Route</span>
         </button>
         <!--Export button for json conversion and db storage-->
         <button id="btn-export" @click="exportPins">
@@ -27,6 +34,7 @@
       <div v-if="showForm" class="note-form">
         <h2>Add a Memory</h2>
         <textarea v-model="noteText" placeholder="Jot down your memories here!"></textarea>
+        <input type="date" placeholder="Date" v-model="noteDate"/>
         <button @click="saveNote">Save</button>
         <button @click="cancelNote">Cancel</button>
       </div>
@@ -41,7 +49,6 @@
     data() {
       return {
         map: null,
-        spinEnabled: false, //Disabled spinning for now. May be too distracting for users
         userInteracting: false,
         secondsPerRevolution: 120,
         maxSpinZoom: 5,
@@ -50,7 +57,10 @@
         showForm: false,
         noteText: '',
         noteCoords: null,
-        pins: [] //Array to hold all the pins for backend storage
+        pins: [], //Array to hold all the pins for backend storage
+        route: [],
+        routePins: [],
+        markerColor: '#ff0000', // Default color for the pin
       };
     },
     mounted() { //Lifecycle hook for when map is mounted
@@ -69,33 +79,17 @@
       });
   
       this.setupEventListeners();
-      this.spinGlobe();
     },
     methods: {
-      //Function for globe spin. Automatically rotates and can be disabled by a button
-      spinGlobe() {
-        if (!this.spinEnabled || this.userInteracting || this.map.getZoom() >= this.maxSpinZoom) return;
-        
-        let distancePerSecond = 360 / this.secondsPerRevolution;
-        if (this.map.getZoom() > this.slowSpinZoom) {
-          let zoomDif = (this.maxSpinZoom - this.map.getZoom()) / (this.maxSpinZoom - this.slowSpinZoom);
-          distancePerSecond *= zoomDif;
-        }
-        
-        let center = this.map.getCenter();
-        center.lng -= distancePerSecond;
-        this.map.easeTo({ center, duration: 1000, easing: (n) => n });
-      },
       //Interaction listeners for map
       setupEventListeners() {
         const map = this.map;
         
         map.on('mousedown', () => this.userInteracting = true);
-        map.on('mouseup', () => { this.userInteracting = false; this.spinGlobe(); });
-        map.on('dragend', () => { this.userInteracting = false; this.spinGlobe(); });
-        map.on('pitchend', () => { this.userInteracting = false; this.spinGlobe(); });
-        map.on('rotateend', () => { this.userInteracting = false; this.spinGlobe(); });
-        map.on('moveend', () => this.spinGlobe());
+        map.on('mouseup', () =>  this.userInteracting = false);
+        map.on('dragend', () =>  this.userInteracting = false);
+        map.on('pitchend', () => this.userInteracting = false);
+        map.on('rotateend', () => this.userInteracting = false);
 
         // Listen for clicks and log latitude/longitude for pin location, then show the form to add a note
         map.on('click', (e) => {
@@ -103,12 +97,30 @@
           this.noteCoords = e.lngLat;
           this.showForm = true;
         });
+
+        // Right click event
+        map.on('contextmenu', (e) => {
+          const { lng, lat } = e.lngLat;
+          this.noteCoords = e.lngLat
+          this.showForm = true;
+          this.route.push([lng, lat]);
+          this.routePins.push({ coordinates: { lng, lat } });
+          this.drawRoute();
+        });
       },
       //Function that adds the pin to the map and saves any associated data with it
       async saveNote() {
-        if (!this.noteText.trim()) return; // Ignore empty notes
+        if (!this.noteText.trim()) {
+          alert('Note is empty!')
+          return; // Ignore empty notes
+        }
 
-        const timestamp = new Date().toLocaleString();  //Mark the time of note creation
+        if (!this.noteDate) {
+          alert('Please select a date!');
+          return; // Ignore empty dates
+        }
+
+        //const timestamp = new Date().toLocaleString();  //Mark the time of note creation
         const { lng, lat } = this.noteCoords; //Extract longitude and latitude from note coordinates
 
         // Reverse geocode the coordinates to extract city and country
@@ -118,13 +130,13 @@
         const popup = new mapboxgl.Popup({ offset: 25, closeButton: false }) 
           .setHTML(`
             ${this.noteText}<hr>
-            <strong>Date/Time:</strong> ${timestamp}<br>
+            <strong>Date:</strong> ${this.noteDate}<br>
             <strong>Lat:</strong> ${lat.toFixed(4)}, <strong>Lng:</strong> ${lng.toFixed(4)}<br>
             <strong>Location:</strong> ${city}, ${country}
           `);
 
         // Create the pin for the map and set the location to the lat and lng of the click. Attach the popup to the pin and add it to the map
-        const pin = new mapboxgl.Marker()
+        const pin = new mapboxgl.Marker({color: this.markerColor})
           .setLngLat([lng, lat])
           .setPopup(popup) //Add the popup to the marker
           .addTo(this.map);
@@ -134,7 +146,7 @@
         pin.getElement().addEventListener('mouseleave', () => popup.remove());
 
         // Push data to array
-        this.pins.push({ pin, text: this.noteText, timestamp, coordinates: this.noteCoords, location: {city, country}});
+        this.pins.push({ pin, text: this.noteText, date: this.noteDate, coordinates: this.noteCoords, location: {city, country}});
 
         //Reset form for a new note
         this.showForm = false;
@@ -161,9 +173,9 @@
         return;
       }
       // Format the pins data into JSON
-      const pinData = this.pins.map(({ text, timestamp, coordinates, location }) => ({
+      const pinData = this.pins.map(({ text, noteDate, coordinates, location }) => ({
         text,
-        timestamp,
+        noteDate,
         lat: coordinates.lat,
         lng: coordinates.lng,
         location: {
@@ -219,14 +231,87 @@
         return { city: 'Error', country: 'Error' };
       }
     },
+    //Function to draw a route between marked points
+    async drawRoute() {
+      if (this.route.length < 2) return; // Need at least 2 points
 
-    //Function to toggle spin on and off
-    toggleSpin() {
-      this.spinEnabled = !this.spinEnabled;
-      if (this.spinEnabled) {
-        this.spinGlobe();
-      } else {
-        this.map.stop();
+      const coordinatesStr = this.route.map(coord => coord.join(',')).join(';');
+      const accessToken = mapboxgl.accessToken;
+
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinatesStr}?geometries=geojson&access_token=${accessToken}`;
+
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!data.routes || data.routes.length === 0) {
+          alert('No route found!');
+          return;
+        }
+
+        const routeGeoJSON = {
+          type: 'Feature',
+          geometry: data.routes[0].geometry
+        };
+
+        // If the layer already exists, just update it
+        if (this.map.getSource('routeLine')) {
+          this.map.getSource('routeLine').setData(routeGeoJSON);
+        } else {
+          this.map.addSource('routeLine', {
+            type: 'geojson',
+            data: routeGeoJSON
+          });
+
+          this.map.addLayer({
+            id: 'routeLineLayer',
+            type: 'line',
+            source: 'routeLine',
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': '#ff0000',
+              'line-width': 4
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching route:', err);
+        alert('Error fetching route');
+      }
+    },
+    exportRoutes() {
+      if (this.route.length === 0) {
+        alert('No route to export!');
+        return;
+      }
+
+      const routeData = {
+        coordinates: this.route.map(([lng, lat]) => ({ lng, lat })),
+        pins: this.routePins.map(({ coordinates }) => ({
+          lng: coordinates.lng,
+          lat: coordinates.lat
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(routeData, null, 2)], {
+        type: 'application/json'
+      });
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'route.json';
+      link.click();
+
+      alert('Route exported successfully!');
+    },
+    clearRoute() {
+      this.route = [];
+      if (this.map.getSource('routeLine')) {
+        this.map.removeLayer('routeLineLayer');
+        this.map.removeSource('routeLine');
       }
     }
     }
@@ -241,39 +326,32 @@
     bottom: 0;
     width: 100%;
   }
-  /*Button styling*/
-  #btn-spin {
-    font: bold 12px/20px 'Helvetica Neue', Arial, sans-serif;
-    background-color: #3386c0;
-    color: #fff;
+  #color-picker {
     position: absolute;
-    top: 20px;
+    top: 10px;
     left: 50%;
-    z-index: 1;
-    border: none;
-    width: 200px;
-    margin-left: -100px;
-    display: block;
-    cursor: pointer;
-    padding: 10px 20px;
-    border-radius: 3px;
-  }
-  /*Button hover color*/
-  #btn-spin:hover {
-    background-color: #4ea0da;
+    transform: translateX(-50%);
+    background: #3386c0;
+    padding: 5px 10px;
+    z-index: 2;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: bold;
   }
 
-  /*Delete button styling within sidebar*/
-  .sidebar #btn-delete {
+  /* Delete button styling (hidden until sidebar expansion)*/
+  #btn-delete {
     font: bold 14px 'Helvetica Neue', Arial, sans-serif;
+    background-color: #3386c0;
     color: white;
     border: none;
     width: 150px;
     padding: 10px;
     cursor: pointer;
-    border-radius: 5px;
-    margin-top: 20px;
-    opacity: 1;
+    opacity: 1; 
+    transition: opacity 0.2s ease-in-out;
   }
 
   /*Change delete button to red upon hover*/
@@ -324,19 +402,6 @@
     display: inline;
   }
 
-  /* Delete button styling (hidden until sidebar expansion)*/
-  #btn-delete {
-    font: bold 14px 'Helvetica Neue', Arial, sans-serif;
-    background-color: #3386c0;
-    color: white;
-    border: none;
-    width: 150px;
-    padding: 10px;
-    cursor: pointer;
-    opacity: 0; 
-    transition: opacity 0.2s ease-in-out;
-  }
-
   /* Export button styling */
   #btn-export {
     font: bold 14px 'Helvetica Neue', Arial, sans-serif;
@@ -354,6 +419,22 @@
     background-color: #4ea0da;
   }
 
+    /* Export button styling */
+  #btn-delete-route {
+    font: bold 14px 'Helvetica Neue', Arial, sans-serif;
+    background-color: #3386c0;
+    color: white;
+    border: none;
+    width: 150px;
+    padding: 10px;
+    cursor: pointer;
+    opacity: 1;
+  }
+
+  #btn-delete-route:hover {
+    background-color: red;
+    opacity: 1;
+  }
 
   /* Note form */
   .note-form {
