@@ -5,10 +5,17 @@ defineProps({
     required: true,
   },
 })
+
+const emit = defineEmits(['edit', 'delete'])
 </script>
 
 <template>
   <div class="post-card">
+    <div class="actions">
+      <button @click="$emit('edit', cardProp)">✏️</button>
+      <button @click="$emit('delete', cardProp.id)">❌</button>
+    </div>
+    
     <h2>{{ cardProp.title }}</h2>
     <h6>{{ cardProp.location }} {{ cardProp.time }}</h6>
     <span>{{ cardProp.content }}</span>
@@ -16,6 +23,29 @@ defineProps({
 </template>
 
 <style scoped>
+.actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  padding: 6px;
+  font-size: 18px;
+  background: rgba(230, 56, 114, 0.8);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: rgba(200, 46, 90, 0.8);
+}
+
 span {
   font-size: 15px;
   text-align: center;
@@ -41,6 +71,7 @@ h6 {
 } */
 
 .post-card {
+  position: relative;
   width: 350px;
   padding: 20px;
   border: 1px solid #39495c;

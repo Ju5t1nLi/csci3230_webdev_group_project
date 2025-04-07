@@ -8,6 +8,7 @@ import AddPostForm from '../components/AddPostForm.vue'
 const route = useRoute()
 const trip = ref(null)
 const showForm = ref(false)
+const postBeingEdited = ref(null)
 
 const updateTrip = () => {
 const tripId = parseInt(route.params.id)
@@ -17,39 +18,59 @@ trip.value = trips.value.find((t) => t.id === tripId)
 watch(() => route.params.id, updateTrip, { immediate: true })
 
 const addNewPost = (post) => {
-    if (trip.value) {
-        trip.value.posts.push({ ...post, id: Date.now() })
-    }
+  const existingIndex = trip.value.posts.findIndex(p => p.id === post.id)
+  if (existingIndex !== -1) {
+    trip.value.posts[existingIndex] = post
+  } else {
+    trip.value.posts.push(post)
+  }
+}
+
+const editPost = (post) => {
+  postBeingEdited.value = post
+  showForm.value = true
+}
+
+const deletePost = (postId) => {
+  trip.value.posts = trip.value.posts.filter(p => p.id !== postId)
+}
+
+const addPostButtonClick = () => {
+  postBeingEdited.value = null
+  showForm.value = true
 }
 </script>
 
 <template>
-  <div class="trip-view">
-    <h1 v-if="trip">{{ trip.title }}</h1>
-    <h1 v-else>Trip not found</h1>
-
-    <div class="posts-container" v-if="trip">
-      <PostCard
-        v-for="post in trip.posts"
-        :key="post.id"
-        :cardProp="post"
+    <div class="trip-view">
+      <h1 v-if="trip">{{ trip.title }}</h1>
+      <h1 v-else>Trip not found</h1>
+  
+      <div class="posts-container" v-if="trip">
+        <PostCard
+          v-for="post in trip.posts"
+          :key="post.id"
+          :cardProp="post"
+          @edit="editPost"
+          @delete="deletePost"
+        />
+      </div>
+  
+      <button
+        v-if="trip"
+        class="add-post-btn"
+        @click="addPostButtonClick"
+      >
+        Add New Post
+      </button>
+  
+      <AddPostForm
+        v-if="showForm"
+        :post="postBeingEdited"
+        @submit="addNewPost"
+        @close="showForm = false"
       />
     </div>
-
-    <button
-      v-if="trip"
-      class="add-post-btn"
-      @click="showForm = true"
-    >
-      Add New Post
-    </button>
-
-    <AddPostForm
-      v-if="showForm"
-      @submit="addNewPost"
-      @close="showForm = false"
-    />
-  </div>
 </template>
 
 
@@ -87,4 +108,3 @@ const addNewPost = (post) => {
     transform: scale(1.03);
   }
 </style>
-  

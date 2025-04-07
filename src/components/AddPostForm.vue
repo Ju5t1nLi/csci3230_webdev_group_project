@@ -1,28 +1,42 @@
 <script setup>
-  import { ref, defineEmits } from 'vue'
+import { ref, defineProps, watch, defineEmits } from 'vue'
 
-  const emit = defineEmits(['submit', 'close'])
+const props = defineProps({
+  post: Object
+})
 
-  const title = ref('')
-  const location = ref('')
-  const time = ref('')
-  const content = ref('')
+const emit = defineEmits(['submit', 'close'])
 
-  const submitForm = () => {
-    emit('submit', {
-      title: title.value,
-      location: location.value,
-      time: time.value,
-      content: content.value,
-    })
+const title = ref('')
+const location = ref('')
+const time = ref('')
+const content = ref('')
 
-    title.value = ''
-    location.value = ''
-    time.value = ''
-    content.value = ''
-
-    emit('close')
+watch(() => props.post, (post) => {
+  if (post) {
+    title.value = post.title
+    location.value = post.location
+    time.value = post.time
+    content.value = post.content
   }
+}, { immediate: true })
+
+const submitForm = () => {
+  emit('submit', {
+    id: props.post?.id || Date.now(),
+    title: title.value,
+    location: location.value,
+    time: time.value,
+    content: content.value,
+  })
+
+  title.value = ''
+  location.value = ''
+  time.value = ''
+  content.value = ''
+
+  emit('close')
+}
 </script>
 
 <template>
