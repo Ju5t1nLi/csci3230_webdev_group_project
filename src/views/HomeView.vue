@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { trips } from '../stores/trip'
-import TripCard from '../components/TripCard.vue'
 
 const router = useRouter()
 const showForm = ref(false)
