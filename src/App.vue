@@ -1,11 +1,16 @@
 <script setup>
 import { RouterView } from 'vue-router'
+import 'primeicons/primeicons.css';
 </script>
 
 <template>
   <div id="layout">
     <header>
       <div class="wrapper"></div>
+      <nav>
+        <!--Routing between main homepage and globe page. placeholders for navigation (for now)-->
+        <RouterLink to="/globe">Globe</RouterLink>
+      </nav>
     </header>
   </div>
   <RouterView />
