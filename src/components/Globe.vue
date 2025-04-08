@@ -15,7 +15,7 @@
           <i class="pi pi-thumbtack"></i> <span class="nav-text">Export Pins</span>
         </button>
         <button id="btn-export" @click="exportRoutes">
-          <i class="pi pi-download"></i> <span class="nav-text">Export Routes</span>
+          <i class="pi pi-download"></i> <span class="nav-text">Export Route</span>
         </button>
         <!--Delete button for all pins on the map-->
         <button id="btn-delete" @click="deleteAllPins">
@@ -25,7 +25,40 @@
         <button id ="btn-delete" @click="clearRoute">
           <i class="pi pi-eraser"></i> <span class="nav-text">Clear Route</span>
         </button>
+        <!--Help button-->
+        <button id ="btn-help" @click="toggleHelp">
+          <i class="pi pi-question-circle"></i> <span class="nav-text">Help</span>
+        </button>
         </nav>
+      </div>
+
+      <!-- Help button instructions that will pop up when help is clicked -->
+      <div v-if="showHelp" class="help-button">
+        <h4>🌎 Globe Instructions:</h4>
+            <ul>
+              <li>Scroll Wheel/Pinch to zoom in or out.</li>
+              <li>Hold Left-Click to pan across the screen.</li>
+              <li>Hold Right-Click to rotate the globe.</li>
+            </ul>
+            <h4>🌎 Sidebar Tools:</h4>
+            <ul>
+              <li>🟦 Left-click on any location to add a blue pin.
+              <ul>
+                <li>This is useful for marking specific points that you want to keep track of!</li>
+              </ul>
+              </li>
+              <li>🟥 Right-click to add a red pin for creating a trip route.
+              <ul>
+                <li>All red pins will be connected to each other in a route.</li>
+                <li>Only 1 route can be made at a time.</li>
+              </ul>
+              </li>
+              <li>📝 Fill in your pins with any details you like!</li>
+              <li>📥 Use "Export Pins" or "Export Route" to save your pins.</li>
+
+              <li>🗑️ "Delete All Pins" will remove all blue pins. "Clear Route" removes red pins and paths.</li>
+            </ul>
+            <button id="help-exit" @click="exitHelp">Close</button>
       </div>
 
       <!-- Floating form for note input -->
@@ -41,6 +74,7 @@
   
   <script>
   import mapboxgl from 'mapbox-gl'; //npm install mapbox-gl if not installed
+  import '../assets/Globe.css'; //Import CSS for the map
   
   export default {
     //Default data
@@ -51,6 +85,7 @@
         secondsPerRevolution: 120,
         maxSpinZoom: 5,
         slowSpinZoom: 3,
+        showHelp: false,
         //Note data (includes the text, location, timestamp)
         showForm: false,
         noteText: '',
@@ -149,7 +184,6 @@
           this.pins.push({ pin, text: this.noteText, date: this.noteDate, coordinates: this.noteCoords, location: { city, country } });
         } else if (this.markerColor === '#ff0000') { // Red marker (route pin)
           this.routePins.push({ pin, text: this.noteText, date: this.noteDate, time: timestamp, coordinates: this.noteCoords, location: { city, country } });
-          console.log('Route Pins:', this.routePins);
           this.drawRoute();
         }
 
@@ -167,6 +201,11 @@
       },
       //Delete function to wipe all pins + notes from the map
       deleteAllPins() {
+        // Trigger an alert if there are no pins to delete
+        if (this.pins.length === 0) {
+          alert('No pins to delete!');
+          return;
+        }
         this.pins.forEach(({ pin }) => pin.remove()); 
         this.pins = [];
       },
@@ -240,34 +279,40 @@
     async drawRoute() {
       if (this.route.length < 2) return; // Need at least 2 points
 
+      //Format coordinate string to match requirement for api call
       const coordinatesStr = this.route.map(coord => coord.join(',')).join(';');
       const accessToken = mapboxgl.accessToken;
 
+      //Call directions api
       const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinatesStr}?geometries=geojson&access_token=${accessToken}`;
 
       try {
+        //Receive a response from the api
         const response = await fetch(url);
         const data = await response.json();
 
+        //Throw an alert if there wwas no route found (i.e. marker placed on a mountain)
         if (!data.routes || data.routes.length === 0) {
           alert('No route found!');
           return;
         }
 
+        //Format the route data into GeoJSON format for mapbox
         const routeGeoJSON = {
           type: 'Feature',
           geometry: data.routes[0].geometry
         };
 
-        // If the layer already exists, just update it
+        // If a line already exists, update the line.
         if (this.map.getSource('routeLine')) {
           this.map.getSource('routeLine').setData(routeGeoJSON);
-        } else {
+        } else { //Otherwise, create a new line
           this.map.addSource('routeLine', {
             type: 'geojson',
             data: routeGeoJSON
           });
 
+          //Add the line to the map
           this.map.addLayer({
             id: 'routeLineLayer',
             type: 'line',
@@ -282,12 +327,14 @@
             }
           });
         }
-      } catch (err) {
+      } catch (err) { //Throw an error if the API call fails
         console.error('Error fetching route:', err);
         alert('Error fetching route');
       }
     },
+    //Function to export a route to a JSON
     exportRoutes() {
+      // Throw an alert if there was no route to export
       if (this.route.length === 0) {
         alert('No route to export!');
         return;
@@ -300,6 +347,7 @@
         return;
       }
 
+      // Gather and format the route data into JSON
       const routeData = {
       title: tripTitle.trim(),
       pins: this.routePins.map(({text, noteDate, timestamp, coordinates, location}) => ({
@@ -315,19 +363,28 @@
       }))
       };
 
+      // Create a blob from the JSON data for file download
       const blob = new Blob([JSON.stringify(routeData, null, 2)], {
       type: 'application/json'
       });
 
+      // Trigger a download of the JSON file. Placeholder functionality for now; can be replaced with a call to backend
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `${tripTitle.trim().replace(/\s+/g, '_')}_route.json`;
       link.click();
 
+      // Trigger an alert and clear the route from the map
       alert('Route exported successfully!');
       this.clearRoute();
     },
+    //Wipes the route from the map
     clearRoute() {
+      // Trigger an alert if there are is no route to clear
+      if (this.route.length === 0) {
+        alert('No route to clear!');
+        return;
+      }
       // Remove red route pins from the map
       this.routePins.forEach(({ pin }) => {if (pin) pin.remove();});
 
@@ -338,164 +395,15 @@
         this.map.removeLayer('routeLineLayer');
         this.map.removeSource('routeLine');
       }
-    }
+    },
+    //Toggle help popup
+    toggleHelp() {
+      this.showHelp = !this.showHelp; 
+    },
+    //Exit button functionality for help menu
+    exitHelp(){
+      this.toggleHelp();
+    },
     }
   };
   </script>
-  
-  <style scoped>
-  /*Map styling*/
-  #map {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-  }
-
-  /* Delete button styling (hidden until sidebar expansion)*/
-  #btn-delete {
-    font: bold 14px 'Helvetica Neue', Arial, sans-serif;
-    background-color: #3386c0;
-    color: white;
-    border: none;
-    width: 150px;
-    padding: 10px;
-    cursor: pointer;
-    opacity: 1; 
-    transition: opacity 0.2s ease-in-out;
-  }
-
-  /*Change delete button to red upon hover*/
-  #btn-delete:hover {
-    background-color: red;
-    opacity: 1;
-  }
-
-
-  /* Sidebar styling */
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 50px; /* Default width when collapsed */
-    background: #3386c0;
-    color: white;
-    transition: width 0.3s ease-in-out;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-top: 20px;
-  }
-
-  /* Sidebar expansion on hover */
-  .sidebar:hover {
-    width: 200px;
-  }
-
-  /* Nav item (icon) styling */
-  nav {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    align-items: center;
-    width: 100%;
-  }
-
-  /* Don't show text when the sidebar is collapsed */
-  .nav-text {
-    display: none;
-  }
-
-  /* Show text when sidebar is expanded */
-  .sidebar:hover .nav-text {
-    display: inline;
-  }
-
-  /* Export button styling */
-  #btn-export {
-    font: bold 14px 'Helvetica Neue', Arial, sans-serif;
-    background-color: #3386c0;
-    color: white;
-    border: none;
-    width: 150px;
-    padding: 10px;
-    cursor: pointer;
-    opacity: 1;
-  }
-
-  /* Export button background color when hovered over*/
-  #btn-export:hover {
-    background-color: #4ea0da;
-  }
-
-    /* Export button styling */
-  #btn-delete-route {
-    font: bold 14px 'Helvetica Neue', Arial, sans-serif;
-    background-color: #3386c0;
-    color: white;
-    border: none;
-    width: 150px;
-    padding: 10px;
-    cursor: pointer;
-    opacity: 1;
-  }
-
-  #btn-delete-route:hover {
-    background-color: red;
-    opacity: 1;
-  }
-
-  /* Note form */
-  .note-form {
-    position: absolute;
-    top: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    align-self: center;
-    background: #3386c0;
-    padding: 15px;
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    border-radius: 5px;
-    width: 250px;
-  }
-
-  /* Note form title */
-  .note-form h2 {
-    font-size: 16px;
-    text-align: center;
-    color: white;
-    font-weight: bold;
-  }
-
-  /* Note form input area */
-  .note-form textarea {
-    width: 100%;
-    height: 60px;
-    margin-bottom: 10px;
-    resize: none;
-  }
-
-  /* Note form buttons */
-  .note-form button {
-    width: 48%;
-    padding: 5px;
-    margin: 5px 1%;
-    cursor: pointer;
-    border: none;
-    border-radius: 3px;
-  }
-
-  /* Note form save button */
-  .note-form button:first-of-type {
-    background-color: black;
-    color: white;
-  }
-
-  /* Note form cancel button */
-  .note-form button:last-of-type {
-    background-color: lightgray;
-  }
-  </style>
