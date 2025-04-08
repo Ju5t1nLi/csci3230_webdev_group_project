@@ -1,4 +1,5 @@
-exports.getAllTrips = async (req, res, next) => {
+
+exports.getAllTrips = (req, res, next) => {
   try {
     req.db.all('SELECT * FROM trips', (err, rows) => {
       if (err) throw err;

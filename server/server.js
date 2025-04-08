@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const initializeDatabase = require('./config/database');
+const initializeDatabase = require('./db_config/database');
 const routes = require('./routes');
 
 const app = express();

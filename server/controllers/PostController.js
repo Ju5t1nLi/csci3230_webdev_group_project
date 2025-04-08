@@ -4,11 +4,12 @@ exports.getPosts = (req, res, next) => {
     req.db.all(
         `SELECT * FROM blog_posts 
         WHERE trip_id = ? 
-        ORDER BY created_at ASC`, // Changed from post_date to created_at
+        ORDER BY created_at ASC`,
         [tripId],
         (err, posts) => {
         if (err) return next(err);
         res.json(posts);
+        
         }
     );
   };
@@ -35,7 +36,7 @@ exports.createPost = (req, res, next) => {
 
 exports.updatePost = (req, res, next) => {
     const { blogID } = req.params;
-    const { content, latitude, longitude } = req.body; // Updated fields
+    const { content, latitude, longitude } = req.body;
 
     if (!validateCoordinates(latitude, longitude)) {
         return res.status(400).json({ error: 'Invalid coordinates' });

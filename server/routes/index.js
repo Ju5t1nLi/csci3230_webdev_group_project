@@ -7,7 +7,6 @@ router.use('/trips', require('./trips')); // for CRUD to trip db
 
 // Database schema endpoint
 router.get('/', (req, res) => {
-    console.log("test");
     req.db.all(
     "SELECT name, sql FROM sqlite_schema WHERE type='table'",
     (err, schema) => {
