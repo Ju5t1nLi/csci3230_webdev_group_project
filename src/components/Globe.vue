@@ -3,11 +3,6 @@
     <div>
       <!-- Map -->
       <div id="map" ref="mapContainer"></div>
-      <!-- Color picker for marker -->
-      <div id="color-picker">
-        <label for="marker-color">Pin Color:</label>
-        <input type="color" id="marker-color" v-model="markerColor" />
-      </div>
       <!-- Sidebar for map tools -->
       <div class="sidebar" :class="{ open: sidebarOpen }">
         <nav>
@@ -15,17 +10,20 @@
         <RouterLink to="/">
           <i class="pi pi-home"></i> <span class="nav-text">Home</span>
         </RouterLink>
+        <!--Export button for json conversion and db storage-->
+        <button id="btn-export" @click="exportPins">
+          <i class="pi pi-thumbtack"></i> <span class="nav-text">Export Pins</span>
+        </button>
+        <button id="btn-export" @click="exportRoutes">
+          <i class="pi pi-download"></i> <span class="nav-text">Export Routes</span>
+        </button>
         <!--Delete button for all pins on the map-->
         <button id="btn-delete" @click="deleteAllPins">
           <i class="pi pi-trash"></i> <span class="nav-text">Delete All Pins</span>
         </button>
         <!--Delete route button-->
-        <button id ="btn-delete-route" @click="clearRoute">
-          <i class="pi pi-circle"></i> <span class="nav-text">Clear Route</span>
-        </button>
-        <!--Export button for json conversion and db storage-->
-        <button id="btn-export" @click="exportPins">
-          <i class="pi pi-download"></i> <span class="nav-text">Export Pins</span>
+        <button id ="btn-delete" @click="clearRoute">
+          <i class="pi pi-eraser"></i> <span class="nav-text">Clear Route</span>
         </button>
         </nav>
       </div>
@@ -60,7 +58,7 @@
         pins: [], //Array to hold all the pins for backend storage
         route: [],
         routePins: [],
-        markerColor: '#ff0000', // Default color for the pin
+        markerColor: '#0000ff', // Default color for the pin (blue)
       };
     },
     mounted() { //Lifecycle hook for when map is mounted
@@ -96,6 +94,7 @@
           this.userInteracting = true;
           this.noteCoords = e.lngLat;
           this.showForm = true;
+          this.markerColor = '#0000ff';
         });
 
         // Right click event
@@ -103,6 +102,7 @@
           const { lng, lat } = e.lngLat;
           this.noteCoords = e.lngLat
           this.showForm = true;
+          this.markerColor = '#ff0000';
           this.route.push([lng, lat]);
           this.routePins.push({ coordinates: { lng, lat } });
           this.drawRoute();
@@ -145,8 +145,12 @@
         pin.getElement().addEventListener('mouseenter', () => popup.addTo(this.map));
         pin.getElement().addEventListener('mouseleave', () => popup.remove());
 
-        // Push data to array
-        this.pins.push({ pin, text: this.noteText, date: this.noteDate, coordinates: this.noteCoords, location: {city, country}});
+        // Save the note to array based on the marker color
+        if (this.markerColor === '#0000ff') { // Blue marker (regular pin)
+          this.pins.push({ pin, text: this.noteText, date: this.noteDate, coordinates: this.noteCoords, location: { city, country } });
+        } else if (this.markerColor === '#ff0000') { // Red marker (route pin)
+          this.routePins.push({ pin, text: this.noteText, date: this.noteDate, coordinates: this.noteCoords, location: { city, country } });
+        }
 
         //Reset form for a new note
         this.showForm = false;
@@ -308,6 +312,11 @@
       alert('Route exported successfully!');
     },
     clearRoute() {
+      // Remove red route pins from the map
+      this.routePins.forEach(({ pin }) => {if (pin) pin.remove();});
+
+      // Clear route and route pin data
+      this.routePins = [];
       this.route = [];
       if (this.map.getSource('routeLine')) {
         this.map.removeLayer('routeLineLayer');
@@ -325,20 +334,6 @@
     top: 0;
     bottom: 0;
     width: 100%;
-  }
-  #color-picker {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #3386c0;
-    padding: 5px 10px;
-    z-index: 2;
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: bold;
   }
 
   /* Delete button styling (hidden until sidebar expansion)*/
