@@ -15,7 +15,7 @@ describe('App', () => {
     await browser.close();
   });
 
-  test('should display "Hello, world!" on the home page', async () => {
+  test('should return some value at server root', async () => {
     fetch(`${server_port}/`,{
       method: 'GET', // rest api request type
       headers: { 'Content-Type': 'application/json' }, //specifying that we are sending json (i dont send anything here)
