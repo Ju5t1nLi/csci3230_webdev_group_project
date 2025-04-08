@@ -21,6 +21,6 @@ router
   .post(PostController.createPost)
   .delete(PostController.deletePost);
 
-router.get('/:tripId/route', TripController.getTripRoute);
+router.get('/:user', TripController.getAllTripsForUser);
 
 module.exports = router;

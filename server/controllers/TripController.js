@@ -10,8 +10,20 @@ exports.getAllTrips = (req, res, next) => {
   }
 };
 
+exports.getAllTripsForUser = (req, res, next) => {
+  const { user } = req.body;
+  try {
+    req.db.all('SELECT * FROM trips WHERE user = ?',[user], (err, rows) => {
+      if (err) throw err;
+      res.json(rows);
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.createTrip = (req, res, next) => {
-  const { title, user } = req.body; // Changed from description/date fields
+  const { title, user } = req.body;
   
   req.db.run(
     `INSERT INTO trips (title, user) 
@@ -24,31 +36,6 @@ exports.createTrip = (req, res, next) => {
   );
 };
 
-
-
-exports.getTripRoute = (req, res, next) => {
-  const { tripId } = req.params;
-
-  req.db.all(
-    `SELECT latitude, longitude, created_at 
-     FROM blog_posts 
-     WHERE trip_id = ? 
-     ORDER BY created_at ASC`, // Removed location_name
-    [tripId],
-    (err, routePoints) => {
-      if (err) return next(err);
-      res.json({
-        tripId,
-        points: routePoints,
-        path: routePoints.map(p => ({ 
-          lat: p.latitude, 
-          lng: p.longitude,
-          timestamp: p.created_at 
-        }))
-      });
-    }
-  );
-};
 
 exports.getTripById = (req, res, next) => {
   const { tripId } = req.params;
@@ -65,7 +52,7 @@ exports.getTripById = (req, res, next) => {
 
 exports.updateTrip = (req, res, next) => {
   const { tripId } = req.params;
-  const { title } = req.body; // Updated fields
+  const { title } = req.body; 
   
   req.db.run(
     `UPDATE trips SET 
