@@ -17,6 +17,10 @@
         <button id="btn-export" @click="exportRoutes">
           <i class="pi pi-download"></i> <span class="nav-text">Export Route</span>
         </button>
+        <!--Get routes button-->
+        <button id="btn-export" @click="getRoutes">
+          <i class="pi pi-download"></i> <span class="nav-text">Get Route</span>
+        </button>
         <!--Delete button for all pins on the map-->
         <button id="btn-delete" @click="deleteAllPins">
           <i class="pi pi-trash"></i> <span class="nav-text">Delete All Pins</span>
@@ -181,7 +185,7 @@
 
         // Save the note to array based on the marker color
         if (this.markerColor === '#0000ff') { // Blue marker (regular pin)
-          this.pins.push({ pin, text: this.noteText, date: this.noteDate, coordinates: this.noteCoords, location: { city, country } });
+          this.pins.push({ pin, text: this.noteText, date: this.noteDate, time: timestamp, coordinates: this.noteCoords, location: { city, country } });
         } else if (this.markerColor === '#ff0000') { // Red marker (route pin)
           this.routePins.push({ pin, text: this.noteText, date: this.noteDate, time: timestamp, coordinates: this.noteCoords, location: { city, country } });
           this.drawRoute();
@@ -210,35 +214,69 @@
         this.pins = [];
       },
       //Export function to convert pin data into a JSON file
-      exportPins() {
-      //Send an alert if there are no pins to export
-      if (this.pins.length === 0) {
-        alert('No pins to export!');
-        return;
-      }
-      // Format the pins data into JSON
-      const pinData = this.pins.map(({ text, noteDate, coordinates, location }) => ({
-        text,
-        noteDate,
-        lat: coordinates.lat,
-        lng: coordinates.lng,
-        location: {
-          city: location.city,
-          country: location.country
+      async exportPins() {
+        // Send an alert if there are no pins to export
+        if (this.pins.length === 0) {
+          alert('No pins to export!');
+          return;
         }
-      }));
 
-      // Create a blob from the JSON data for file download
-      const blob = new Blob([JSON.stringify(pinData, null, 2)], {
-        type: 'application/json',
-      });
+        // Prompt the user for a trip title
+        const tripTitle = prompt('Enter a title for your trip:');
+        if (!tripTitle || !tripTitle.trim()) {
+          alert('Trip title is required!');
+          return;
+        }
 
-      // Trigger a download of the JSON file. Placeholder functionality for now; can be replaced with a call to backend
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'notes.json'; 
-      link.click(); 
-      alert('Pins exported successfully!');
+        // Format the pin data into JSON
+        const pinData = this.pins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
+          text,
+          noteDate,
+          timestamp,
+          lat: coordinates.lat,
+          lng: coordinates.lng,
+          location: {
+            city: location.city,
+            country: location.country
+          }
+        }));
+
+        const blog_post_url = 'http://localhost:3001/trips/3/posts'; //must be equal to id of trip
+
+        // Construct the payload for all pins
+        try {
+          const responses = await Promise.all(pinData.map(pin => {
+          const payload = {
+            trip_id: 1,
+            content: pin.text,
+            latitude: pin.lat,
+            longitude: pin.lng,
+            created_at: pin.timestamp,
+          };
+
+          //Send POST request using the payload for each pin
+          return fetch(blog_post_url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+        }));
+
+          // Trigger JSON download once pins are exported to the db
+          const blob = new Blob([JSON.stringify(pinData, null, 2)], {
+            type: 'application/json',
+          });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'notes.json';
+          link.click();
+
+          alert('All pins exported successfully!');
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
     },
     //Function to convert the coordinates of a pin and extract the city and country of the location the pin was placed at
     async reverseGeocode(lng, lat) {
@@ -333,7 +371,7 @@
       }
     },
     //Function to export a route to a JSON
-    exportRoutes() {
+    async exportRoutes() {
       // Throw an alert if there was no route to export
       if (this.route.length === 0) {
         alert('No route to export!');
@@ -347,37 +385,94 @@
         return;
       }
 
-      // Gather and format the route data into JSON
+      // Prepare the route data to save to file
       const routeData = {
-      title: tripTitle.trim(),
-      pins: this.routePins.map(({text, noteDate, timestamp, coordinates, location}) => ({
-        text,
-        noteDate,
-        timestamp,
-        lng: coordinates.lng,
-        lat: coordinates.lat,
-        location: {
-          city: location.city,
-          country: location.country
-        }
-      }))
+        title: tripTitle.trim(),
+        pins: this.routePins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
+          text,
+          noteDate,
+          timestamp,
+          lng: coordinates.lng,
+          lat: coordinates.lat,
+          location: {
+            city: location.city,
+            country: location.country
+          }
+        }))
       };
 
-      // Create a blob from the JSON data for file download
-      const blob = new Blob([JSON.stringify(routeData, null, 2)], {
-      type: 'application/json'
-      });
+      //fetch url for trip 
+      const trip_url = 'http://localhost:3001/trips';
+      //fetch url for blog post. trip id will be appended to the url
+      const blog_post_url = 'http://localhost:3001/trips';
 
-      // Trigger a download of the JSON file. Placeholder functionality for now; can be replaced with a call to backend
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${tripTitle.trim().replace(/\s+/g, '_')}_route.json`;
-      link.click();
+      try {
+        // Create a new trip that will hold the route and its points
+        const tripResponse = await fetch(trip_url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ title: tripTitle.trim(), user: 'default', created_at: new Date().toISOString()})
+        });
 
-      // Trigger an alert and clear the route from the map
-      alert('Route exported successfully!');
-      this.clearRoute();
+        //Throw error if there was an improper response
+        if (!tripResponse.ok) {
+          throw new Error('Failed to create new trip');
+        }
+
+        // Parse the reponse and grab the trip id from it (foreign key for the blog post)
+        const newTrip = await tripResponse.json();
+        const newTripId = newTrip.id;
+
+        // Create the url for the plog post using the id of the trip
+        const postUrl = `${blog_post_url}/${newTripId}/posts`;
+
+        // Construct payload for all pins used in the route
+        const postResponses = await Promise.all(routeData.pins.map(pin => {
+          const payload = {
+            trip_id: newTripId,
+            content: pin.text,
+            latitude: pin.lat,
+            longitude: pin.lng,
+            created_at: pin.timestamp,
+          };
+
+          //Send a post request to the blog posts 
+          return fetch(postUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+        }));
+
+        //Throw an error if a pin failed to export to the db
+        for (const response of postResponses) {
+          if (!response.ok) {
+            throw new Error('One or more pins failed to export.');
+          }
+        }
+
+        // Download the route data as JSON
+        const blob = new Blob([JSON.stringify(routeData, null, 2)], {
+          type: 'application/json'
+        });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${tripTitle.trim().replace(/\s+/g, '_')}_route.json`;
+        link.click();
+
+        // Throw an alert if the export was successful and clear the route from the map
+        alert('Route exported successfully!');
+        this.clearRoute();
+
+      } catch (error) {
+        alert(`Error: ${error.message}`);
+      }
     },
+
     //Wipes the route from the map
     clearRoute() {
       // Trigger an alert if there are is no route to clear
@@ -394,6 +489,25 @@
       if (this.map.getSource('routeLine')) {
         this.map.removeLayer('routeLineLayer');
         this.map.removeSource('routeLine');
+      }
+    },
+    //GET request to backend
+    async getRoutes(){
+      try {
+      //Get contents of trips db
+      const response = await fetch('http://localhost:3001/trips', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      console.log(data);
+
+      // Display each entry in an alert
+      data.forEach((trip) => {
+        alert(JSON.stringify(trip, null, 2));
+      });
+      } catch (error) {
+      console.error('Error fetching routes:', error);
       }
     },
     //Toggle help popup
