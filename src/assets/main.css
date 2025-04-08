@@ -5,6 +5,9 @@
   margin: 0 auto;
   padding: 2rem;
   font-weight: normal;
+  /* Adjusted display settings for map */
+  display: flex;
+  height: 100vh;
 }
 
 a,
