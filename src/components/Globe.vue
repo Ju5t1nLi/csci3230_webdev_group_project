@@ -85,7 +85,7 @@
         secondsPerRevolution: 120,
         maxSpinZoom: 5,
         slowSpinZoom: 3,
-        showHelp: false,
+        showHelp: true,
         //Note data (includes the text, location, timestamp)
         showForm: false,
         noteText: '',
@@ -104,7 +104,7 @@
         container: this.$refs.mapContainer,
         style: 'mapbox://styles/mapbox/standard-satellite', //Satellite style for map. Shows countries, roads, etc (can be changed)
         projection: 'globe', //Globe projection
-        zoom: 10, // Default zoom into Toronto
+        zoom: 13, // Default zoom into Toronto
         center: [-79.3832,43.6532], //Initial centering for map onto Toronto
       });
   
