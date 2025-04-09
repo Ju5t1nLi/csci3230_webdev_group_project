@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 
-const initializeDatabase = () => {
-  const db = new sqlite3.Database('./trips.db', (err) => {
+const initializeDatabase = (db_path='./server/trips.db') => {
+  const db = new sqlite3.Database(db_path, (err) => {
     if (err) console.error('Database connection error:', err);
   });
 
@@ -26,7 +26,7 @@ const initializeDatabase = () => {
         content TEXT NOT NULL,
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
-        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        blog_date TEXT NOT NULL,
         FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
       )`
     );

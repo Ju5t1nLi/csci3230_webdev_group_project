@@ -4,7 +4,7 @@ exports.getPosts = (req, res, next) => {
     req.db.all(
         `SELECT * FROM blog_posts 
         WHERE trip_id = ? 
-        ORDER BY created_at ASC`,
+        ORDER BY blog_date ASC`,
         [tripId],
         (err, posts) => {
         if (err) return next(err);
@@ -16,7 +16,7 @@ exports.getPosts = (req, res, next) => {
 
 exports.createPost = (req, res, next) => {
     const { tripId } = req.params;
-    const { content, latitude, longitude } = req.body;
+    const { content, latitude, longitude, blogDate} = req.body;
   
     if (!validateCoordinates(latitude, longitude)) {
       return res.status(400).json({ error: 'Invalid coordinates' });
@@ -24,9 +24,9 @@ exports.createPost = (req, res, next) => {
   
     req.db.run(
       `INSERT INTO blog_posts 
-       (trip_id, content, latitude, longitude) 
-       VALUES (?, ?, ?, ?)`,
-      [tripId, content, latitude, longitude],
+       (trip_id, content, latitude, longitude, blog_date) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [tripId, content, latitude, longitude,blogDate],
       function(err) {
         if (err) return next(err);
         res.status(201).json({ id: this.lastID });
@@ -36,7 +36,7 @@ exports.createPost = (req, res, next) => {
 
 exports.updatePost = (req, res, next) => {
     const { blogID } = req.params;
-    const { content, latitude, longitude } = req.body;
+    const { content, latitude, longitude, blogDate } = req.body;
 
     if (!validateCoordinates(latitude, longitude)) {
         return res.status(400).json({ error: 'Invalid coordinates' });
@@ -46,9 +46,10 @@ exports.updatePost = (req, res, next) => {
       `UPDATE blog_post SET 
         content = ?, 
         latitude = ?,
-        longtitude = ?
+        longtitude = ?,
+        blog_date
        WHERE id = ?`,
-      [content, latitude, longitude, blogID],
+      [content, latitude, longitude, blogID,blogDate],
       function(err) {
         if (err) return next(err);
         res.json({ updated: this.changes });
