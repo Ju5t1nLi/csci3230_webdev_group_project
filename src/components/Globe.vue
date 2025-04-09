@@ -195,89 +195,58 @@
         this.showForm = false;
         this.noteText = '';
         this.noteCoords = null;
-      },
-
-      // Reset function in case the user doesn't want to save the note
-      cancelNote() {
-        this.showForm = false;
-        this.noteText = '';
-        this.noteCoords = null;
-      },
-      //Delete function to wipe all pins + notes from the map
-      deleteAllPins() {
-        // Trigger an alert if there are no pins to delete
-        if (this.pins.length === 0) {
-          alert('No pins to delete!');
-          return;
-        }
-        this.pins.forEach(({ pin }) => pin.remove()); 
-        this.pins = [];
-      },
-      //Export function to convert pin data into a JSON file
-      async exportPins() {
-        // Send an alert if there are no pins to export
-        if (this.pins.length === 0) {
-          alert('No pins to export!');
-          return;
-        }
-
-        // Prompt the user for a trip title
-        const tripTitle = prompt('Enter a title for your trip:');
-        if (!tripTitle || !tripTitle.trim()) {
-          alert('Trip title is required!');
-          return;
-        }
-
-        // Format the pin data into JSON
-        const pinData = this.pins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
-          text,
-          noteDate,
-          timestamp,
-          lat: coordinates.lat,
-          lng: coordinates.lng,
-          location: {
-            city: location.city,
-            country: location.country
-          }
-        }));
-
-        const blog_post_url = 'http://localhost:3001/trips/3/posts'; //must be equal to id of trip
-
-        // Construct the payload for all pins
-        try {
-          const responses = await Promise.all(pinData.map(pin => {
-          const payload = {
-            trip_id: 1,
-            content: pin.text,
-            latitude: pin.lat,
-            longitude: pin.lng,
-            created_at: pin.timestamp,
-          };
-
-          //Send POST request using the payload for each pin
-          return fetch(blog_post_url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-        }));
-
-          // Trigger JSON download once pins are exported to the db
-          const blob = new Blob([JSON.stringify(pinData, null, 2)], {
-            type: 'application/json',
-          });
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = 'notes.json';
-          link.click();
-
-          alert('All pins exported successfully!');
-        } catch (error) {
-          alert(`Error: ${error.message}`);
-        }
     },
+    // Reset function in case the user doesn't want to save the note
+    cancelNote() {
+      this.showForm = false;
+      this.noteText = '';
+      this.noteCoords = null;
+    },
+    //Delete function to wipe all pins + notes from the map
+    deleteAllPins() {
+      // Trigger an alert if there are no pins to delete
+      if (this.pins.length === 0) {
+        alert('No pins to delete!');
+        return;
+      }
+      this.pins.forEach(({ pin }) => pin.remove()); 
+      this.pins = [];
+    },
+    //Export function to convert pin data into a JSON file
+    async exportPins() {
+      // Trigger an alert if there are no pins to export
+      if (this.pins.length === 0) {
+        alert('No pins to export!');
+        return;
+      }
+
+      // Compare the title the user enters to the titles in the trip database
+      const trip = await this.compareTitle('Enter the trip title that you want your pins to be added to (case sensitive):');
+      if (!trip) return;
+
+      // Format pin data into JSON for export
+      const pins = this.pins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
+        text,
+        noteDate,
+        timestamp,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        location: {
+          city: location.city,
+          country: location.country
+        }
+      }));
+
+      // Try to POST the data to the db and download a JSON file containing the data. Delete all pins after a successful export
+      try {
+        await this.postAndDownload(trip.id, pins, `notes.json`);
+        alert('Pins exported successfully!');
+        this.deleteAllPins();
+      } catch (error) {
+        alert(`Error: ${error.message}`);
+      }
+    },
+
     //Function to convert the coordinates of a pin and extract the city and country of the location the pin was placed at
     async reverseGeocode(lng, lat) {
       //API call using latitude and longitude coorinates and API token
@@ -372,107 +341,38 @@
     },
     //Function to export a route to a JSON
     async exportRoutes() {
-      // Throw an alert if there was no route to export
+      // Trigger an alert if there are no pins to delete
       if (this.route.length === 0) {
         alert('No route to export!');
         return;
       }
 
-      // Prompt the user for a trip title
-      const tripTitle = prompt('Enter a title for your trip:');
-      if (!tripTitle || !tripTitle.trim()) {
-        alert('Trip title is required!');
-        return;
-      }
+      // Compare the title the user enters to the titles in the trip database
+      const trip = await this.compareTitle('Enter the trip title that you want your route to be added to (case sensitive):');
+      if (!trip) return;
 
-      // Prepare the route data to save to file
-      const routeData = {
-        title: tripTitle.trim(),
-        pins: this.routePins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
-          text,
-          noteDate,
-          timestamp,
-          lng: coordinates.lng,
-          lat: coordinates.lat,
-          location: {
-            city: location.city,
-            country: location.country
-          }
-        }))
-      };
+      // Format route data into JSON for export
+      const pins = this.routePins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
+        text,
+        noteDate,
+        timestamp,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        location: {
+          city: location.city,
+          country: location.country
+        }
+      }));
 
-      //fetch url for trip 
-      const trip_url = 'http://localhost:3001/trips';
-      //fetch url for blog post. trip id will be appended to the url
-      const blog_post_url = 'http://localhost:3001/trips';
-
+      // Try to POST the data to the db and download a JSON file containing the data. Delete all pins/route after a successful export
       try {
-        // Create a new trip that will hold the route and its points
-        const tripResponse = await fetch(trip_url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ title: tripTitle.trim(), user: 'default', created_at: new Date().toISOString()})
-        });
-
-        //Throw error if there was an improper response
-        if (!tripResponse.ok) {
-          throw new Error('Failed to create new trip');
-        }
-
-        // Parse the reponse and grab the trip id from it (foreign key for the blog post)
-        const newTrip = await tripResponse.json();
-        const newTripId = newTrip.id;
-
-        // Create the url for the plog post using the id of the trip
-        const postUrl = `${blog_post_url}/${newTripId}/posts`;
-
-        // Construct payload for all pins used in the route
-        const postResponses = await Promise.all(routeData.pins.map(pin => {
-          const payload = {
-            trip_id: newTripId,
-            content: pin.text,
-            latitude: pin.lat,
-            longitude: pin.lng,
-            created_at: pin.timestamp,
-          };
-
-          //Send a post request to the blog posts 
-          return fetch(postUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-        }));
-
-        //Throw an error if a pin failed to export to the db
-        for (const response of postResponses) {
-          if (!response.ok) {
-            throw new Error('One or more pins failed to export.');
-          }
-        }
-
-        // Download the route data as JSON
-        const blob = new Blob([JSON.stringify(routeData, null, 2)], {
-          type: 'application/json'
-        });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${tripTitle.trim().replace(/\s+/g, '_')}_route.json`;
-        link.click();
-
-        // Throw an alert if the export was successful and clear the route from the map
+        await this.postAndDownload(trip.id, pins, `${trip.title.replace(/\s+/g, '_')}_route.json`);
         alert('Route exported successfully!');
         this.clearRoute();
-
       } catch (error) {
         alert(`Error: ${error.message}`);
       }
     },
-
     //Wipes the route from the map
     clearRoute() {
       // Trigger an alert if there are is no route to clear
@@ -518,6 +418,81 @@
     exitHelp(){
       this.toggleHelp();
     },
+    //Function to compare the trip title from a user to the trip title saved in the database
+    async compareTitle(title) {
+      // Take the title from the user and check if it exists in the database
+      const tripTitle = prompt(title);
+      
+      //Trigger an alert if the trip title is empty
+      if (!tripTitle || !tripTitle.trim()) {
+        alert('Trip title is required!');
+        return null;
+      }
+
+      // URL to the trip table
+      const trip_url = 'http://localhost:3001/trips';
+
+      // Fetch the trip titles from the trip table using the above url
+      const response = await fetch(`${trip_url}?title=${encodeURIComponent(tripTitle.trim())}`);
+
+      // Error handling for a failed fetch request
+      if (!response.ok) {
+        alert('Failed to check for existing trips');
+        return null;
+      }
+
+      // Parse the response and check if the trip title exists in the database
+      const trips = await response.json();
+      const matchedTrip = trips.find(trip => trip.title.toLowerCase() === tripTitle.trim().toLowerCase());
+
+      // Trigger an alert if a trip title was not found to be a match
+      if (!matchedTrip) {
+        alert(`Trip titled "${tripTitle.trim()}" was not found. Please create it before exporting, or check the spelling of the title (case sensitive).`);
+        return null;
+      }
+
+      // Return the id of the atching trip name and its title for a POST to the blog post database
+      return { id: matchedTrip.id, title: matchedTrip.title };
+    },
+    // Function to send a POST request to the blog post database, and download the data as a JSON file
+    async postAndDownload(tripId, pins, fileName) {
+      // URL to the blog post table, using the tripID found previously
+      const postUrl = `http://localhost:3001/trips/${tripId}/posts`;
+
+      // Create payloads for each pin
+      const postResponses = await Promise.all(pins.map(pin => {
+        const payload = {
+          trip_id: tripId,
+          content: pin.text,
+          latitude: pin.lat,
+          longitude: pin.lng,
+          created_at: pin.timestamp,
+        };
+
+        //Send a POST request to the blog post table using each pin
+        return fetch(postUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      }));
+
+      // Check if all POST requests were successful
+      for (const response of postResponses) {
+        if (!response.ok) throw new Error('One or more pins failed to export.');
+      }
+
+      // Create a JSON file containing the pin information and create a downloadable file
+      const blob = new Blob([JSON.stringify(pins, null, 2)], {
+        type: 'application/json'
+      });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+    }
     }
   };
   </script>
