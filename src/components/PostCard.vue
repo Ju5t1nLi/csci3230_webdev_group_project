@@ -6,18 +6,31 @@ defineProps({
   },
 })
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 const emit = defineEmits(['edit', 'delete'])
 </script>
 
 <template>
   <div class="post-card">
     <div class="actions">
-      <button @click="$emit('edit', cardProp)">✏️</button>
       <button @click="$emit('delete', cardProp.id)">❌</button>
     </div>
     
     <h2>{{ cardProp.title }}</h2>
-    <h6>{{ cardProp.location }} {{ cardProp.time }}</h6>
+    <h6>
+      {{ cardProp.location }}
+      <br />
+      <span class="date">{{ formatDate(cardProp.created_at) }}</span>
+    </h6>
     <span>{{ cardProp.content }}</span>
   </div>
 </template>
@@ -60,15 +73,6 @@ h2 {
 h6 {
   margin-top: 0%;
 }
-
-/* .post-card {
-  padding: 5%;
-  width: 250px;
-  cursor: pointer;
-  border: 1px solid #39495c;
-  margin-bottom: 18px;
-  background-color: white;
-} */
 
 .post-card {
   position: relative;

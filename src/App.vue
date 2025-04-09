@@ -7,10 +7,10 @@ import 'primeicons/primeicons.css';
   <div id="layout">
     <header>
       <div class="wrapper"></div>
-      <nav>
+      <!-- <nav> -->
         <!--Routing between main homepage and globe page. placeholders for navigation (for now)-->
-        <RouterLink to="/globe">Globe</RouterLink>
-      </nav>
+        <!-- <RouterLink to="/globe">Globe</RouterLink> -->
+      <!-- </nav> -->
     </header>
   </div>
   <RouterView />
