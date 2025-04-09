@@ -21,6 +21,11 @@ router
   .post(PostController.createPost)
   .delete(PostController.deletePost);
 
+router
+  .route('/:tripId/posts/:blogID')
+  // .get(PostController.getPosts)
+  .delete(PostController.deletePost);
+
 router.get('/:user', TripController.getAllTripsForUser);
 
 module.exports = router;

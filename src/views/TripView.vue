@@ -1,44 +1,56 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, RouterView} from 'vue-router'
 import { trips } from '../stores/trip'
 import PostCard from '../components/PostCard.vue'
 import AddPostForm from '../components/AddPostForm.vue'
 
 const route = useRoute()
 const trip = ref(null)
-const showForm = ref(false)
-const postBeingEdited = ref(null)
-
-const updateTrip = () => {
 const tripId = parseInt(route.params.id)
-trip.value = trips.value.find((t) => t.id === tripId)
+
+
+const updateTrip = async () => {
+  const tripId = parseInt(route.params.id)
+  const selectedTrip = trips.value.find((t) => t.id === tripId)
+
+  if (!selectedTrip) {
+    trip.value = null
+    return
+  }
+
+  try {
+    const res = await fetch(`http://localhost:3001/trips/${tripId}/posts`)
+    const posts = await res.json()
+    trip.value = { ...selectedTrip, posts }
+  } catch (error) {
+    console.error('Failed to fetch posts:', error)
+    trip.value = { ...selectedTrip, posts: [] }
+  }
 }
 
 watch(() => route.params.id, updateTrip, { immediate: true })
 
-const addNewPost = (post) => {
-  const existingIndex = trip.value.posts.findIndex(p => p.id === post.id)
-  if (existingIndex !== -1) {
-    trip.value.posts[existingIndex] = post
-  } else {
-    trip.value.posts.push(post)
+const deletePost = async (postId) => {
+  const tripId = parseInt(route.params.id);
+  console.log(`Deleting post with ID: ${postId} from trip with ID: ${tripId}`);
+
+  try {
+    const response = await fetch(`http://localhost:3001/trips/${tripId}/posts/${postId}`, {
+      method: 'DELETE',
+    });
+
+    if (response.ok) {
+      trip.value.posts = trip.value.posts.filter((post) => post.id !== postId);
+    } else {
+      const errorText = await response.text();
+      console.error('Error deleting post:', errorText);
+    }
+  } catch (error) {
+    console.error('Error deleting post:', error);
   }
-}
+};
 
-const editPost = (post) => {
-  postBeingEdited.value = post
-  showForm.value = true
-}
-
-const deletePost = (postId) => {
-  trip.value.posts = trip.value.posts.filter(p => p.id !== postId)
-}
-
-const addPostButtonClick = () => {
-  postBeingEdited.value = null
-  showForm.value = true
-}
 </script>
 
 <template>
@@ -51,25 +63,13 @@ const addPostButtonClick = () => {
           v-for="post in trip.posts"
           :key="post.id"
           :cardProp="post"
-          @edit="editPost"
           @delete="deletePost"
         />
       </div>
-  
-      <button
-        v-if="trip"
-        class="add-post-btn"
-        @click="addPostButtonClick"
-      >
-        Add New Post
-      </button>
-  
-      <AddPostForm
-        v-if="showForm"
-        :post="postBeingEdited"
-        @submit="addNewPost"
-        @close="showForm = false"
-      />
+
+    <button class="add-post-btn">
+        <RouterLink :to="{path: '/globe', query: {tripId: tripId}}">Add New Post</RouterLink>
+    </button>
     </div>
 </template>
 
