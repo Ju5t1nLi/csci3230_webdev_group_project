@@ -6,6 +6,13 @@
     width: 100%;
   }
 
+  /* Map container styling */
+  body,html {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
   /* Delete button styling (hidden until sidebar expansion)*/
   #btn-delete, #btn-export, #btn-help, #btn-delete-route {
     font: bold 14px 'Helvetica Neue', Arial, sans-serif;
@@ -36,7 +43,7 @@
     background: #3386c0;
     color: white;
     transition: width 0.3s ease-in-out;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -128,8 +135,8 @@
 
   /* Help button styling */
   .help-button {
-    position: absolute;
-    top: 100px;
+    position: fixed;
+    top: 50px;
     left: 50%;
     transform: translateX(-50%);
     background-color:#3386c0;
@@ -137,7 +144,11 @@
     padding: 20px;
     border-radius: 5px;
     z-index: 10;
+    max-height: calc(100vh - 100px); 
+    overflow-y: auto;
   }
+
+ 
 
   /* Help button header styling */
   .help-button h4 {
@@ -167,7 +178,7 @@
   }
 
   /* Help exit button styling */
-  #help-exit {
+  #help-exit, #trip-exit {
     background-color: #4ea0da;
     color: white;
     border: none;
@@ -177,4 +188,51 @@
     cursor: pointer;
     margin-top: 20px;
     width: 100%;
+  }
+
+  /*Hover styling for closing popups*/
+  #help-exit:hover, #trip-exit:hover {
+    background-color: red;
+  }
+
+  /* Trip data styling */
+  .trip-data {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color:#3386c0;
+    color: white;
+    padding: 10px;;
+    z-index: 10;
+    max-height: calc(100vh - 100px); 
+    overflow-y: auto;
+  }
+  
+  /* Trip data header styling*/
+  h2 {
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  /* Table styling for saved trips*/
+  .trip-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #4ea0da;
+  }
+  
+
+  /* Table styling for saved trips*/
+  .trip-table th, .trip-table td {
+    border: 1px solid black;
+    padding: 8px;
+    text-align: left;
+  }
+  
+
+  /* Table styling for saved trips*/
+  .trip-table th {
+    background-color: black;
   }
