@@ -1,7 +1,8 @@
-<script setup>
+<!-- <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { trips } from '../stores/trip'
+// import { fetchTrips, createTrip } from '../app/app'
 
 const router = useRouter()
 const showForm = ref(false)
@@ -21,7 +22,65 @@ const addTrip = () => {
 const goToTrip = (tripId) => {
   router.push({ name: 'Trip', params: { id: tripId } })
 }
+</script> -->
+
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { trips } from '../stores/trip'
+import { fetchTrips, createTrip, deleteTrip } from '../app/app'
+
+const router = useRouter()
+
+const showForm = ref(false)
+// const trips = ref('')
+const newTripTitle = ref('')
+const currentUser = '1' 
+
+// Load trips for user on mount
+const loadTrips = async () => {
+  try {
+    const data = await fetchTrips(currentUser)
+    trips.value = data
+  } catch (err) {
+    console.error('Error fetching trips:', err)
+  }
+}
+
+onMounted(loadTrips)
+
+// Add a trip
+const addTrip = async () => {
+  const title = newTripTitle.value.trim()
+  if (!title) return
+
+  try {
+    await createTrip(title, currentUser)
+    newTripTitle.value = ''
+    showForm.value = false
+    await loadTrips()
+  } catch (err) {
+    console.error('Error adding trip:', err)
+  }
+}
+
+
+const removeTrip = async (tripId) => {
+  try {
+    await deleteTrip(tripId)
+    trips.value = trips.value.filter(trip => trip.id !== tripId)
+  } catch (error) {
+    console.error('Error deleting trip:', error)
+  }
+}
+
+const goToTrip = (tripId) => {
+  router.push({ name: 'Trip', params: { id: tripId } })
+}
 </script>
+
+
 
 <template>
   <div class="home">
@@ -35,6 +94,7 @@ const goToTrip = (tripId) => {
         class="trip-card"
         @click="goToTrip(trip.id)"
       >
+        <button class="delete-btn" @click.stop="removeTrip(trip.id)">🗑️</button>
         <h2>{{ trip.title }}</h2>
       </div>
     </div>
@@ -75,6 +135,7 @@ const goToTrip = (tripId) => {
   }
 
   .trip-card {
+    position: relative;
     background: white;
     border: 1px solid #ddd;
     border-radius: 12px;
@@ -154,4 +215,19 @@ const goToTrip = (tripId) => {
   .modal-actions button:hover {
     background-color: rgb(212, 46, 100);
   }
+
+  .delete-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #ff4d4d;
+}
+
+.delete-btn:hover {
+  color: #ff1a1a;
+}
 </style>
