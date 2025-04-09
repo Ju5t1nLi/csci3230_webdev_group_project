@@ -18,8 +18,8 @@
           <i class="pi pi-download"></i> <span class="nav-text">Export Route</span>
         </button>
         <!--Get routes button-->
-        <button id="btn-export" @click="getRoutes">
-          <i class="pi pi-download"></i> <span class="nav-text">Get Route</span>
+        <button id="btn-export" @click="toggleTrip">
+          <i class="pi pi-search"></i> <span class="nav-text">Get Saved Trips</span>
         </button>
         <!--Delete button for all pins on the map-->
         <button id="btn-delete" @click="deleteAllPins">
@@ -59,6 +59,7 @@
               </li>
               <li>📝 Fill in your pins with any details you like!</li>
               <li>📥 Use "Export Pins" or "Export Route" to save your pins.</li>
+              <li>🔎 Use "Get Saved Pins" to view all your saved trips that you are planning.</li>
 
               <li>🗑️ "Delete All Pins" will remove all blue pins. "Clear Route" removes red pins and paths.</li>
             </ul>
@@ -67,11 +68,35 @@
 
       <!-- Floating form for note input -->
       <div v-if="showForm" class="note-form">
-        <h2>Add a Memory</h2>
+        <h2>Add a Blog Post</h2>
         <textarea v-model="noteText" placeholder="Jot down your memories here!"></textarea>
         <input type="date" placeholder="Date" v-model="noteDate"/>
         <button @click="saveNote">Save</button>
         <button @click="cancelNote">Cancel</button>
+      </div>
+
+      <!-- Table containing elements from the Trip table -->
+      <div v-if="showTrips" class="trip-data">
+        <h2>Trip Routes</h2>
+        <table class="trip-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>User</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="trip in trips" :key="trip.id">
+              <td>{{ trip.id }}</td>
+              <td>{{ trip.title }}</td>
+              <td>{{ trip.user }}</td>
+              <td>{{ trip.created_at }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <button id="trip-exit" @click="exitTrip">Close</button>
       </div>
     </div>
   </template>
@@ -86,10 +111,10 @@
       return {
         map: null,
         userInteracting: false,
-        secondsPerRevolution: 120,
         maxSpinZoom: 5,
         slowSpinZoom: 3,
         showHelp: true,
+        showTrips: false,
         //Note data (includes the text, location, timestamp)
         showForm: false,
         noteText: '',
@@ -98,6 +123,7 @@
         pins: [], //Array to hold all the pins for backend storage
         route: [],
         routePins: [],
+        trips: [],
         markerColor: '#0000ff', // Default color for the pin (blue)
       };
     },
@@ -116,6 +142,7 @@
         this.map.setFog({});
       });
   
+      console.log(this.showTrips);
       this.setupEventListeners();
     },
     methods: {
@@ -391,24 +418,37 @@
         this.map.removeSource('routeLine');
       }
     },
-    //GET request to backend
-    async getRoutes(){
+    // Function which calls a GET request to our sqlite backend
+    async getRoutes() {
       try {
-      //Get contents of trips db
-      const response = await fetch('http://localhost:3001/trips', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await response.json();
-      console.log(data);
+        //Try getting all elements from the trips table
+        console.log('Fetching routes...');
+        const response = await fetch('http://localhost:3001/trips', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
 
-      // Display each entry in an alert
-      data.forEach((trip) => {
-        alert(JSON.stringify(trip, null, 2));
-      });
+        //Throw an error if the request failed
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        //Parse the response and send it to an array for diaplsy
+        const data = await response.json();
+        this.trips = data;
+
       } catch (error) {
-      console.error('Error fetching routes:', error);
+        console.error('Error fetching routes:', error); // Catch any errors that may appear
       }
+    },
+    //Toggle trip popup
+    toggleTrip() {
+      this.getRoutes();
+      this.showTrips = !this.showTrips; 
+    },
+    //Exit button functionality for trip menu
+    exitTrip() {
+      this.toggleTrip();
     },
     //Toggle help popup
     toggleHelp() {
