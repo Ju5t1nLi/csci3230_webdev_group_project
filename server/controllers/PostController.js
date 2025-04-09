@@ -1,4 +1,4 @@
-exports.getPosts = (req, res, next) => {
+exports.getAllPostsForTrip = (req, res, next) => {
     const { tripId } = req.params;
     
     req.db.all(
@@ -6,6 +6,23 @@ exports.getPosts = (req, res, next) => {
         WHERE trip_id = ? 
         ORDER BY blog_date ASC`,
         [tripId],
+        (err, posts) => {
+        if (err) return next(err);
+        res.json(posts);
+        
+        }
+    );
+  };
+
+  exports.getPostGivenTrip = (req, res, next) => {
+    const { tripId, blogID } = req.params;
+    
+    req.db.all(
+        `SELECT * FROM blog_posts 
+        WHERE trip_id = ?,
+        AND id = ?
+        ORDER BY blog_date ASC`,
+        [tripId, blogID],
         (err, posts) => {
         if (err) return next(err);
         res.json(posts);
@@ -47,9 +64,9 @@ exports.updatePost = (req, res, next) => {
         content = ?, 
         latitude = ?,
         longtitude = ?,
-        blog_date
+        blog_date = ?
        WHERE id = ?`,
-      [content, latitude, longitude, blogID,blogDate],
+      [content, latitude, longitude, blogDate, blogID],
       function(err) {
         if (err) return next(err);
         res.json({ updated: this.changes });
@@ -58,7 +75,7 @@ exports.updatePost = (req, res, next) => {
   };
   
 exports.deletePost = (req, res, next) => {
-    const { blogID } = req.params;
+    const { tripId,blogID } = req.params;
 
     req.db.run(
         'DELETE FROM blog_posts WHERE id = ?',

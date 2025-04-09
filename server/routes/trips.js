@@ -16,14 +16,13 @@ router
 
 router
   .route('/:tripId/posts')
-  .get(PostController.getPosts)
-  .put(PostController.updatePost)
+  .get(PostController.getAllPostsForTrip)
   .post(PostController.createPost)
-  .delete(PostController.deletePost);
 
 router
   .route('/:tripId/posts/:blogID')
-  // .get(PostController.getPosts)
+  .put(PostController.updatePost)
+  .get(PostController.getPostGivenTrip)
   .delete(PostController.deletePost);
 
 router.get('/:user', TripController.getAllTripsForUser);
