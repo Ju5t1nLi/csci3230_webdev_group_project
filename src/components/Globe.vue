@@ -10,24 +10,16 @@
         <RouterLink to="/">
           <i class="pi pi-home"></i> <span class="nav-text">Home</span>
         </RouterLink>
-        <!--Export button for json conversion and db storage-->
-        <button id="btn-export" @click="exportPins">
-          <i class="pi pi-thumbtack"></i> <span class="nav-text">Export Pins</span>
-        </button>
         <button id="btn-export" @click="exportRoutes">
           <i class="pi pi-download"></i> <span class="nav-text">Export Route</span>
         </button>
         <!--Get routes button-->
         <button id="btn-export" @click="toggleTrip">
-          <i class="pi pi-search"></i> <span class="nav-text">Get Saved Trips</span>
+          <i class="pi pi-search"></i> <span class="nav-text">Get Route Posts</span>
         </button>
-        <!--Delete button for all pins on the map-->
-        <button id="btn-delete" @click="deleteAllPins">
-          <i class="pi pi-trash"></i> <span class="nav-text">Delete All Pins</span>
-        </button>
-        <!--Delete route button-->
-        <button id ="btn-delete" @click="clearRoute">
-          <i class="pi pi-eraser"></i> <span class="nav-text">Clear Route</span>
+        <!--Get routes button-->
+        <button id="btn-export" @click="populatePins(tripIdValue)">
+          <i class="pi pi-lock"></i> <span class="nav-text">Save Route</span>
         </button>
         <!--Help button-->
         <button id ="btn-help" @click="toggleHelp">
@@ -46,22 +38,19 @@
             </ul>
             <h4>🌎 Sidebar Tools:</h4>
             <ul>
-              <li>🟦 Left-click on any location to add a blue pin.
-              <ul>
-                <li>This is useful for marking specific points that you want to keep track of!</li>
-              </ul>
-              </li>
-              <li>🟥 Right-click to add a red pin for creating a trip route.
-              <ul>
-                <li>All red pins will be connected to each other in a route.</li>
-                <li>Only 1 route can be made at a time.</li>
-              </ul>
-              </li>
+              <li>🟥 Left-click on any location to add a pin.</li>
               <li>📝 Fill in your pins with any details you like!</li>
-              <li>📥 Use "Export Pins" or "Export Route" to save your pins.</li>
-              <li>🔎 Use "Get Saved Pins" to view all your saved trips that you are planning.</li>
+              <li>🟥 Continue adding as many pins as you would like!
+              <ul>
+                <li>Routes will be constructed in chronological order.</li>
+                <li>Pins automatically get saved as you place them. To delete them, navigate to the homepage to delete specific blogposts.</li>
+                <li>🟩 Green represents saved routes and pins. Click "Save Route" to verify your route!</li>
+                <li>🟥 Red represents routes and pins currently being edited.</li>
+              </ul>
+              </li>
+              <li>📥 Use "Export Route" to download your pins.</li>
+              <li>🔎 Use "Get Route Posts" to view all your blogposts from your trip.</li>
 
-              <li>🗑️ "Delete All Pins" will remove all blue pins. "Clear Route" removes red pins and paths.</li>
             </ul>
             <button id="help-exit" @click="exitHelp">Close</button>
       </div>
@@ -77,22 +66,20 @@
 
       <!-- Table containing elements from the Trip table -->
       <div v-if="showTrips" class="trip-data">
-        <h2>Trip Routes</h2>
+        <h2>Current Blog Posts</h2>
         <table class="trip-table">
           <thead>
             <tr>
               <th>ID</th>
               <th>Title</th>
-              <th>User</th>
-              <th>Created At</th>
+              <th>Date</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="trip in trips" :key="trip.id">
               <td>{{ trip.id }}</td>
-              <td>{{ trip.title }}</td>
-              <td>{{ trip.user }}</td>
-              <td>{{ trip.created_at }}</td>
+              <td>{{ trip.content }}</td>
+              <td>{{ trip.blog_date }}</td>
             </tr>
           </tbody>
         </table>
@@ -103,7 +90,7 @@
   
   <script>
   import mapboxgl from 'mapbox-gl'; //npm install mapbox-gl if not installed
-  import '../assets/Globe.css'; //Import CSS for the map
+  import '../assets/globe.css'; //Import CSS for the map
   
   export default {
     //Default data
@@ -119,12 +106,12 @@
         showForm: false,
         noteText: '',
         noteCoords: null,
+        tripIdValue: null,
         //Pin & route data
-        pins: [], //Array to hold all the pins for backend storage
         route: [],
         routePins: [],
         trips: [],
-        markerColor: '#0000ff', // Default color for the pin (blue)
+        markerColor: '#ff0000', // Default color for the pin (blue)
       };
     },
     mounted() { //Lifecycle hook for when map is mounted
@@ -144,33 +131,28 @@
   
       console.log(this.showTrips);
       this.setupEventListeners();
+      this.tripIdValue = new URL(window.location.href).searchParams.get("tripId");
+      console.log(this.tripIdValue);
+      this.populatePins(this.tripIdValue);
     },
     methods: {
       //Interaction listeners for map
       setupEventListeners() {
         const map = this.map;
         
+        //Event listeners for map interaction
         map.on('mousedown', () => this.userInteracting = true);
         map.on('mouseup', () =>  this.userInteracting = false);
         map.on('dragend', () =>  this.userInteracting = false);
         map.on('pitchend', () => this.userInteracting = false);
         map.on('rotateend', () => this.userInteracting = false);
 
-        // Listen for clicks and log latitude/longitude for pin location, then show the form to add a note
+        // Left click event
         map.on('click', (e) => {
-          this.userInteracting = true;
-          this.noteCoords = e.lngLat;
-          this.showForm = true;
-          this.markerColor = '#0000ff';
-        });
-
-        // Right click event
-        map.on('contextmenu', (e) => {
           const { lng, lat } = e.lngLat;
           this.noteCoords = e.lngLat
           this.showForm = true;
           this.markerColor = '#ff0000';
-          this.route.push([lng, lat]);
         });
       },
       //Function that adds the pin to the map and saves any associated data with it
@@ -210,70 +192,34 @@
         pin.getElement().addEventListener('mouseenter', () => popup.addTo(this.map));
         pin.getElement().addEventListener('mouseleave', () => popup.remove());
 
-        // Save the note to array based on the marker color
-        if (this.markerColor === '#0000ff') { // Blue marker (regular pin)
-          this.pins.push({ pin, text: this.noteText, date: this.noteDate, time: timestamp, coordinates: this.noteCoords, location: { city, country } });
-        } else if (this.markerColor === '#ff0000') { // Red marker (route pin)
-          this.routePins.push({ pin, text: this.noteText, date: this.noteDate, time: timestamp, coordinates: this.noteCoords, location: { city, country } });
-          this.drawRoute();
-        }
+        //Push pin to array
+        this.routePins.push({ pin, text: this.noteText, date: this.noteDate, time: timestamp, coordinates: this.noteCoords, location: { city, country } });
+        
+        //Send POST request to database
+        this.postOne({
+          text: this.noteText,
+          date: this.noteDate,
+          coordinates: this.noteCoords,
+        });
 
+        // Sort array by date for chronological route planning
+        this.routePins.sort((a, b) => new Date(a.date) - new Date(b.date));
+        // Update array of routes based on the sorted pins
+        this.route = this.routePins.map(({ coordinates }) => [coordinates.lng, coordinates.lat]);
+
+        this.drawRoute('#ff0000'); //Draw a red line between points (signifying an unsaved route)
+        
         //Reset form for a new note
         this.showForm = false;
         this.noteText = '';
         this.noteCoords = null;
-    },
+      },
     // Reset function in case the user doesn't want to save the note
     cancelNote() {
       this.showForm = false;
       this.noteText = '';
       this.noteCoords = null;
     },
-    //Delete function to wipe all pins + notes from the map
-    deleteAllPins() {
-      // Trigger an alert if there are no pins to delete
-      if (this.pins.length === 0) {
-        alert('No pins to delete!');
-        return;
-      }
-      this.pins.forEach(({ pin }) => pin.remove()); 
-      this.pins = [];
-    },
-    //Export function to convert pin data into a JSON file
-    async exportPins() {
-      // Trigger an alert if there are no pins to export
-      if (this.pins.length === 0) {
-        alert('No pins to export!');
-        return;
-      }
-
-      // Compare the title the user enters to the titles in the trip database
-      const trip = await this.compareTitle('Enter the trip title that you want your pins to be added to (case sensitive):');
-      if (!trip) return;
-
-      // Format pin data into JSON for export
-      const pins = this.pins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
-        text,
-        noteDate,
-        timestamp,
-        lat: coordinates.lat,
-        lng: coordinates.lng,
-        location: {
-          city: location.city,
-          country: location.country
-        }
-      }));
-
-      // Try to POST the data to the db and download a JSON file containing the data. Delete all pins after a successful export
-      try {
-        await this.postAndDownload(trip.id, pins, `notes.json`);
-        alert('Pins exported successfully!');
-        this.deleteAllPins();
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    },
-
     //Function to convert the coordinates of a pin and extract the city and country of the location the pin was placed at
     async reverseGeocode(lng, lat) {
       //API call using latitude and longitude coorinates and API token
@@ -310,7 +256,7 @@
       }
     },
     //Function to draw a route between marked points
-    async drawRoute() {
+    async drawRoute(color) {
       if (this.route.length < 2) return; // Need at least 2 points
 
       //Format coordinate string to match requirement for api call
@@ -340,6 +286,7 @@
         // If a line already exists, update the line.
         if (this.map.getSource('routeLine')) {
           this.map.getSource('routeLine').setData(routeGeoJSON);
+          this.map.setPaintProperty('routeLineLayer', 'line-color', color);
         } else { //Otherwise, create a new line
           this.map.addSource('routeLine', {
             type: 'geojson',
@@ -356,7 +303,7 @@
               'line-cap': 'round'
             },
             paint: {
-              'line-color': '#ff0000',
+              'line-color': color,
               'line-width': 4
             }
           });
@@ -373,62 +320,132 @@
         alert('No route to export!');
         return;
       }
-
-      // Compare the title the user enters to the titles in the trip database
-      const trip = await this.compareTitle('Enter the trip title that you want your route to be added to (case sensitive):');
-      if (!trip) return;
-
-      // Format route data into JSON for export
-      const pins = this.routePins.map(({ text, noteDate, timestamp, coordinates, location }) => ({
+      // Export routePins to JSON
+      const routePinsData = this.routePins.map(({ text, date, time, coordinates, location }) => ({
         text,
-        noteDate,
-        timestamp,
-        lat: coordinates.lat,
-        lng: coordinates.lng,
-        location: {
-          city: location.city,
-          country: location.country
-        }
+        date,
+        time,
+        coordinates,
+        location,
       }));
 
-      // Try to POST the data to the db and download a JSON file containing the data. Delete all pins/route after a successful export
-      try {
-        await this.postAndDownload(trip.id, pins, `${trip.title.replace(/\s+/g, '_')}_route.json`);
-        alert('Route exported successfully!');
-        this.clearRoute();
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    },
-    //Wipes the route from the map
-    clearRoute() {
-      // Trigger an alert if there are is no route to clear
-      if (this.route.length === 0) {
-        alert('No route to clear!');
-        return;
-      }
-      // Remove red route pins from the map
-      this.routePins.forEach(({ pin }) => {if (pin) pin.remove();});
+      //Create a downloable JSON file link
+      const blob = new Blob([JSON.stringify(routePinsData, null, 2)], { 
+        type: 'application/json' 
+      });
 
-      // Clear route and route pin data
-      this.routePins = [];
-      this.route = [];
-      if (this.map.getSource('routeLine')) {
-        this.map.removeLayer('routeLineLayer');
-        this.map.removeSource('routeLine');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);;
+      link.download = 'routePins.json';
+      link.click();
+    },
+    //Function to call a POST request to the posts table in the database
+    async postOne(pinData) {
+      try {
+        const response = await fetch(`http://localhost:3001/trips/${this.tripIdValue}/posts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // Convert the pin data to JSON and send it to the db
+          body: JSON.stringify({
+            trip_id: this.tripIdValue,
+            content: pinData.text,
+            latitude: pinData.coordinates.lat,
+            longitude: pinData.coordinates.lng,
+            blog_date: pinData.date,
+          }),
+        });
+
+        //Error checking for POST response
+        if (!response.ok) {
+          console.error('Failed to post pin:', await response.text());
+        } else {
+          console.log('Successfully posted pin:', pinData.text);
+        }
+      } catch (error) {
+        console.error('Error posting pin:', error);
       }
     },
-    // Function which calls a GET request to our sqlite backend
-    async getRoutes() {
+     //Function to populate the map with pins from the database
+     async populatePins(tripId) {
       try {
-        //Try getting all elements from the trips table
-        console.log('Fetching routes...');
-        const response = await fetch('http://localhost:3001/trips', {
+        //Call GET requests for all posts associated with the trip
+        const response = await fetch(`http://localhost:3001/trips/${tripId}/posts`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
 
-        //Throw an error if the request failed
+        //Error checking for GET response
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        //Take the response and add it to an array
+        const data = await response.json();
+        this.previousPins = data;
+
+        //Sort the saved pins by date for chronological order
+        this.previousPins.sort((a, b) => new Date(a.blog_date) - new Date(b.blog_date));
+
+        // Clear any routes in the array (if any)
+        this.route = [];
+
+        // Iterate over the saved pins and push the data to the primary arrays that hold route and pin data
+        for (const pinData of this.previousPins) {
+          const { latitude, longitude, content, blog_date } = pinData;
+          console.log(latitude, longitude, content, blog_date);
+
+          // Add the pin coordinates to the route array
+          this.route.push([longitude, latitude]);
+
+          // Add the pin data to the routePins array 
+          this.routePins.push({
+            text: content,
+            date: blog_date,
+            coordinates: { lat: latitude, lng: longitude },
+          });
+
+          // Reverse geocode the coordinates to extract city and country
+          const { city, country } = await this.reverseGeocode(longitude, latitude);
+
+          //Create the popup for each saved pin
+          const popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
+            .setHTML(`
+              ${content}<hr>
+              <strong>Date:</strong> ${blog_date}<br>
+              <strong>Lat:</strong> ${latitude.toFixed(4)}, <strong>Lng:</strong> ${longitude.toFixed(4)}<br>
+              <strong>Location:</strong> ${city}, ${country}
+            `);
+
+          // Create the pin, set it to its saved coordinates, and add it to the map in a green color (signifying it was a saved pin)
+          const pin = new mapboxgl.Marker({ color: '#32CD32' })
+            .setLngLat([longitude, latitude])
+            .setPopup(popup) // Attach the popup to the marker
+            .addTo(this.map);
+
+          // Add mouseenter and mouseleave events to the marker
+          pin.getElement().addEventListener('mouseenter', () => popup.addTo(this.map));
+          pin.getElement().addEventListener('mouseleave', () => popup.remove());
+        }
+
+        // Draw the route between the pins using green 
+        this.drawRoute('#32CD32');
+
+      } catch (error) {
+        console.error('Error fetching routes:', error);
+      }
+    },
+    // Function which calls a GET request see all the posts associated with the trip
+    async getRoutes() {
+      try {
+        //Try getting all elements from the blog_post table
+        const response = await fetch(`http://localhost:3001/trips/${this.tripIdValue}/posts`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        //Error checking if the request failed
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
@@ -457,81 +474,6 @@
     //Exit button functionality for help menu
     exitHelp(){
       this.toggleHelp();
-    },
-    //Function to compare the trip title from a user to the trip title saved in the database
-    async compareTitle(title) {
-      // Take the title from the user and check if it exists in the database
-      const tripTitle = prompt(title);
-      
-      //Trigger an alert if the trip title is empty
-      if (!tripTitle || !tripTitle.trim()) {
-        alert('Trip title is required!');
-        return null;
-      }
-
-      // URL to the trip table
-      const trip_url = 'http://localhost:3001/trips';
-
-      // Fetch the trip titles from the trip table using the above url
-      const response = await fetch(`${trip_url}?title=${encodeURIComponent(tripTitle.trim())}`);
-
-      // Error handling for a failed fetch request
-      if (!response.ok) {
-        alert('Failed to check for existing trips');
-        return null;
-      }
-
-      // Parse the response and check if the trip title exists in the database
-      const trips = await response.json();
-      const matchedTrip = trips.find(trip => trip.title.toLowerCase() === tripTitle.trim().toLowerCase());
-
-      // Trigger an alert if a trip title was not found to be a match
-      if (!matchedTrip) {
-        alert(`Trip titled "${tripTitle.trim()}" was not found. Please create it before exporting, or check the spelling of the title (case sensitive).`);
-        return null;
-      }
-
-      // Return the id of the atching trip name and its title for a POST to the blog post database
-      return { id: matchedTrip.id, title: matchedTrip.title };
-    },
-    // Function to send a POST request to the blog post database, and download the data as a JSON file
-    async postAndDownload(tripId, pins, fileName) {
-      // URL to the blog post table, using the tripID found previously
-      const postUrl = `http://localhost:3001/trips/${tripId}/posts`;
-
-      // Create payloads for each pin
-      const postResponses = await Promise.all(pins.map(pin => {
-        const payload = {
-          trip_id: tripId,
-          content: pin.text,
-          latitude: pin.lat,
-          longitude: pin.lng,
-          created_at: pin.timestamp,
-        };
-
-        //Send a POST request to the blog post table using each pin
-        return fetch(postUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-      }));
-
-      // Check if all POST requests were successful
-      for (const response of postResponses) {
-        if (!response.ok) throw new Error('One or more pins failed to export.');
-      }
-
-      // Create a JSON file containing the pin information and create a downloadable file
-      const blob = new Blob([JSON.stringify(pins, null, 2)], {
-        type: 'application/json'
-      });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = fileName;
-      link.click();
     }
     }
   };

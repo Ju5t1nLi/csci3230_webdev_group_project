@@ -29,7 +29,7 @@ const emit = defineEmits(['edit', 'delete'])
     <h6>
       {{ cardProp.location }}
       <br />
-      <span class="date">{{ formatDate(cardProp.created_at) }}</span>
+      <span class="date">{{ formatDate(cardProp.blog_date) }}</span>
     </h6>
     <span>{{ cardProp.content }}</span>
   </div>
